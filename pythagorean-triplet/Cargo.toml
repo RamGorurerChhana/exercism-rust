@@ -1,0 +1,8 @@
+[package]
+edition = "2021"
+name = "pythagorean_triplet"
+version = "1.0.0"
+
+
+[dependencies]
+num-integer = "0.1.45"

@@ -1,6 +1,8 @@
 // the PhantomData instances in this file are just to stop compiler complaints
 // about missing generics; feel free to remove them
 
+use std::fmt::Display;
+
 /// A Matcher is a single rule of fizzbuzz: given a function on T, should
 /// a word be substituted in? If yes, which word?
 pub struct Matcher<T>(std::marker::PhantomData<T>);
@@ -20,11 +22,11 @@ impl<T> Matcher<T> {
 /// here because it's a simpler interface for students to implement.
 ///
 /// Also, it's a good excuse to try out using impl trait.
-pub struct Fizzy<T>(std::marker::PhantomData<T>);
+pub struct Fizzy<T>(Vec<T>);
 
-impl<T> Fizzy<T> {
+impl<T: Display> Fizzy<T> {
     pub fn new() -> Self {
-        unimplemented!()
+        Self(vec![])
     }
 
     // feel free to change the signature to `mut self` if you like
@@ -37,7 +39,7 @@ impl<T> Fizzy<T> {
     pub fn apply<I>(self, _iter: I) -> impl Iterator<Item = String> {
         // unimplemented!() doesn't actually work, here; () is not an Iterator
         // that said, this is probably not the actual implementation you desire
-        Vec::new().into_iter()
+        self.0.into_iter().map(|e| e.to_string())
     }
 }
 
