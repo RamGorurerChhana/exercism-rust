@@ -1,18 +1,24 @@
-// the PhantomData instances in this file are just to stop compiler complaints
-// about missing generics; feel free to remove them
-
-use std::fmt::Display;
-
+use std::{fmt::Display, ops::Rem};
 /// A Matcher is a single rule of fizzbuzz: given a function on T, should
 /// a word be substituted in? If yes, which word?
-pub struct Matcher<T>(std::marker::PhantomData<T>);
-
+pub struct Matcher<T> {
+    is_match: fn(T) -> bool,
+    say: &'static str,
+}
 impl<T> Matcher<T> {
-    pub fn new<F, S>(_matcher: F, _subs: S) -> Matcher<T> {
-        unimplemented!()
+    pub fn new(matcher: fn(T) -> bool, subs: &'static str) -> Self {
+        Self {
+            is_match: matcher,
+            say: subs,
+        }
+    }
+    fn check_match(&self, val: T) -> Option<&'static str> {
+        if (self.is_match)(val) {
+            return Some(self.say);
+        }
+        None
     }
 }
-
 /// A Fizzy is a set of matchers, which may be applied to an iterator.
 ///
 /// Strictly speaking, it's usually more idiomatic to use `iter.map()` than to
@@ -22,28 +28,53 @@ impl<T> Matcher<T> {
 /// here because it's a simpler interface for students to implement.
 ///
 /// Also, it's a good excuse to try out using impl trait.
-pub struct Fizzy<T>(Vec<T>);
-
-impl<T: Display> Fizzy<T> {
+pub struct Fizzy<T> {
+    matchers: Vec<Matcher<T>>,
+}
+impl<T> Fizzy<T>
+where
+    T: Display + Copy,
+{
     pub fn new() -> Self {
-        Self(vec![])
+        Self { matchers: vec![] }
     }
-
-    // feel free to change the signature to `mut self` if you like
-    #[must_use]
-    pub fn add_matcher(self, _matcher: Matcher<T>) -> Self {
-        unimplemented!()
+    pub fn add_matcher(mut self, matcher: Matcher<T>) -> Self {
+        self.matchers.push(matcher);
+        self
     }
-
-    /// map this fizzy onto every element of an iterator, returning a new iterator
-    pub fn apply<I>(self, _iter: I) -> impl Iterator<Item = String> {
-        // unimplemented!() doesn't actually work, here; () is not an Iterator
-        // that said, this is probably not the actual implementation you desire
-        self.0.into_iter().map(|e| e.to_string())
+    /// map this fizzy onto every element of an interator, returning a new iterator
+    pub fn apply<I>(self, iter: I) -> impl Iterator<Item = String>
+    where
+        I: Iterator<Item = T>,
+    {
+        iter.map(move |n| {
+            let say: String = self
+                .matchers
+                .iter()
+                .filter_map(|matcher| matcher.check_match(n))
+                .collect();
+            if say.is_empty() {
+                return format!("{}", n);
+            }
+            say
+        })
     }
 }
-
+impl<T> Default for Fizzy<T>
+where
+    T: Display + Copy,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
 /// convenience function: return a Fizzy which applies the standard fizz-buzz rules
-pub fn fizz_buzz<T>() -> Fizzy<T> {
-    unimplemented!()
+pub fn fizz_buzz<T>() -> Fizzy<T>
+where
+    T: Rem<T> + Copy + Display + From<u8>,
+    <T as Rem<T>>::Output: PartialEq<T>,
+{
+    Fizzy::new()
+        .add_matcher(Matcher::new(|n: T| n % T::from(3) == T::from(0), "fizz"))
+        .add_matcher(Matcher::new(|n: T| n % T::from(5) == T::from(0), "buzz"))
 }
