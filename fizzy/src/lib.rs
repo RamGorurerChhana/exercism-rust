@@ -1,24 +1,28 @@
+// the PhantomData instances in this file are just to stop compiler complaints
+// about missing generics; feel free to remove them
+
 use std::{fmt::Display, ops::Rem};
+
 /// A Matcher is a single rule of fizzbuzz: given a function on T, should
 /// a word be substituted in? If yes, which word?
 pub struct Matcher<T> {
-    is_match: fn(T) -> bool,
-    say: &'static str,
+    matcher: Box<dyn Fn(T) -> bool>,
+    sub: String,
 }
+
 impl<T> Matcher<T> {
-    pub fn new(matcher: fn(T) -> bool, subs: &'static str) -> Self {
+    pub fn new<F, S>(matcher: F, sub: S) -> Matcher<T>
+    where
+        F: Fn(T) -> bool + 'static,
+        S: Display,
+    {
         Self {
-            is_match: matcher,
-            say: subs,
+            matcher: Box::new(matcher),
+            sub: sub.to_string(),
         }
-    }
-    fn check_match(&self, val: T) -> Option<&'static str> {
-        if (self.is_match)(val) {
-            return Some(self.say);
-        }
-        None
     }
 }
+
 /// A Fizzy is a set of matchers, which may be applied to an iterator.
 ///
 /// Strictly speaking, it's usually more idiomatic to use `iter.map()` than to
@@ -29,52 +33,67 @@ impl<T> Matcher<T> {
 ///
 /// Also, it's a good excuse to try out using impl trait.
 pub struct Fizzy<T> {
-    matchers: Vec<Matcher<T>>,
+    custom_matchers: Vec<Matcher<T>>,
 }
+
 impl<T> Fizzy<T>
 where
-    T: Display + Copy,
+    T: Display + From<u8> + Rem<Output = T> + Copy + PartialEq,
 {
     pub fn new() -> Self {
-        Self { matchers: vec![] }
+        Self {
+            custom_matchers: vec![],
+        }
     }
+
+    // feel free to change the signature to `mut self` if you like
+    #[must_use]
     pub fn add_matcher(mut self, matcher: Matcher<T>) -> Self {
-        self.matchers.push(matcher);
+        self.custom_matchers.push(matcher);
         self
     }
-    /// map this fizzy onto every element of an interator, returning a new iterator
-    pub fn apply<I>(self, iter: I) -> impl Iterator<Item = String>
-    where
-        I: Iterator<Item = T>,
-    {
-        iter.map(move |n| {
-            let say: String = self
-                .matchers
-                .iter()
-                .filter_map(|matcher| matcher.check_match(n))
-                .collect();
-            if say.is_empty() {
-                return format!("{}", n);
+
+    fn apply_matcher(&self, element: T) -> String {
+        if self.custom_matchers.len() == 0 {
+            return self.default_matcher(element);
+        }
+
+        let mut s = String::new();
+        for m in self.custom_matchers.iter() {
+            if (m.matcher)(element) {
+                s.push_str(m.sub.as_str());
             }
-            say
-        })
+        }
+
+        if s.is_empty() {
+            element.to_string()
+        } else {
+            s
+        }
+    }
+
+    fn default_matcher(&self, element: T) -> String {
+        let three: T = 3u8.into();
+        let five: T = 5u8.into();
+        let zero: T = 0u8.into();
+        match (element % three == zero, element % five == zero) {
+            (true, true) => "fizzbuzz".to_string(),
+            (false, true) => "buzz".to_string(),
+            (true, false) => "fizz".to_string(),
+            (false, false) => element.to_string(),
+        }
+    }
+
+    /// map this fizzy onto every element of an iterator, returning a new iterator
+    pub fn apply<I: Iterator<Item = T>>(self, iter: I) -> impl Iterator<Item = String> {
+        iter.map(move |element| self.apply_matcher(element))
     }
 }
-impl<T> Default for Fizzy<T>
-where
-    T: Display + Copy,
-{
-    fn default() -> Self {
-        Self::new()
-    }
-}
+
 /// convenience function: return a Fizzy which applies the standard fizz-buzz rules
 pub fn fizz_buzz<T>() -> Fizzy<T>
 where
-    T: Rem<T> + Copy + Display + From<u8>,
-    <T as Rem<T>>::Output: PartialEq<T>,
+    T: Display + From<u8> + Rem<Output = T> + Copy + PartialEq,
 {
     Fizzy::new()
-        .add_matcher(Matcher::new(|n: T| n % T::from(3) == T::from(0), "fizz"))
-        .add_matcher(Matcher::new(|n: T| n % T::from(5) == T::from(0), "buzz"))
 }
