@@ -3,6 +3,7 @@ use std::collections::HashMap;
 pub type Value = i32;
 pub type Result = std::result::Result<(), Error>;
 
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum Error {
     DivisionByZero,
@@ -11,7 +12,7 @@ pub enum Error {
     InvalidWord,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 enum Token {
     Int(Value),
     Add,
@@ -24,6 +25,7 @@ enum Token {
     Over,
     Colon,
     SemiColon,
+    Custom(u32),
 }
 
 impl Token {
@@ -47,18 +49,41 @@ impl Token {
     }
 }
 
+
+#[derive(Debug)]
+struct CustomWords {
+    word_ids: HashMap<u32, String>,
+    custom_words: HashMap<String, Vec<Token>>
+}
+
+impl CustomWords {
+    fn new() -> Self {
+        Self { word_ids: HashMap::new(), custom_words: HashMap::new() }
+    }
+
+    fn is_known_word(&self, k: &str) -> bool {
+        self.custom_words.contains_key(k)
+    }
+
+    fn get_by_id(&self, id: &u32) -> Option<&String> {
+        self.word_ids.get(id)
+    }
+
+    fn get_tokens(&self, k: &str) -> Option<&Vec<Token>>{
+        self.custom_words.get(k)
+    }
+}
+
+
 #[derive(Debug)]
 pub struct Forth {
     stack: Vec<Value>,
-    custom_words: HashMap<String, Vec<Token>>,
+    custom_words: CustomWords
 }
 
-impl Forth {
-    pub fn new() -> Forth {
-        Self {
-            stack: vec![],
-            custom_words: HashMap::new(),
-        }
+impl Forth  {
+    pub fn new() -> Self {
+        Self { stack: vec![], custom_words: CustomWords::new()}
     }
 
     pub fn stack(&self) -> &[Value] {
@@ -69,119 +94,139 @@ impl Forth {
         let input = input.to_ascii_lowercase();
         let mut iter = input.split_ascii_whitespace();
         while let Some(t) = iter.next() {
-            // try execute the custom word if present
-            let tokens = self.custom_words.get(t);
-            if tokens.is_some() {
-                let tokens = tokens.unwrap();
-                // TODO: How to do it without clone of tokens vector?
-                let tokens = tokens.iter().cloned().collect::<Vec<_>>();
-                for token in tokens {
-                    let _ = self.execute_token(&mut iter, &token)?;
-                }
+            if self.custom_words.is_known_word(t) {
+                let _ = Self::execute_custom_word(t, &self.custom_words, &mut self.stack)?;
                 continue;
             }
-            // tokenize
-            let token = Token::tokenize(&t).ok_or(Error::UnknownWord)?;
-            // execute token
-            let _ = self.execute_token(&mut iter, &token)?;
+
+            let token = Token::tokenize(t).ok_or(Error::UnknownWord)?;
+            match token {
+                Token::Colon => self.execute_definition(&mut iter)?,
+                _ => Self::execute_token(&mut self.stack, &token)?
+            };
+        }
+
+
+        Ok(())
+    }
+
+    fn execute_custom_word(token: &str, custom_words: &CustomWords, stack: &mut Vec<Value>) -> Result {
+        let tokens = custom_words.get_tokens(token).ok_or(Error::UnknownWord)?;
+        for token in tokens {
+            match token {
+                Token::Custom(id) => Self::execute_custom_token(id, custom_words, stack)?,
+                _ =>Self::execute_token(stack, token)?
+            }
         }
 
         Ok(())
     }
 
-    fn execute_token<'a>(
-        &mut self,
-        iter: &mut impl Iterator<Item = &'a str>,
-        token: &Token,
-    ) -> Result {
+
+    // fn execute_custom_word(&mut self, token: &str) -> Result{
+    //     let tokens = self.custom_words.get_tokens(token).ok_or(Error::UnknownWord)?;
+    //     for token in tokens {
+    //         match token {
+    //             Token::Custom(id) => {},
+    //             _ =>Self::execute_token(&mut self.stack, token)?
+    //         }
+    //     }
+    //     Ok(())
+    // }
+
+    fn execute_token(stack: &mut Vec<Value>, token: &Token) -> Result{
         match token {
-            Token::Add => {
-                let a = self.stack.pop().ok_or(Error::StackUnderflow)?;
-                let b = self.stack.pop().ok_or(Error::StackUnderflow)?;
-                self.stack.push(a + b);
-                Ok(())
-            }
-            Token::Sub => {
-                let a = self.stack.pop().ok_or(Error::StackUnderflow)?;
-                let b = self.stack.pop().ok_or(Error::StackUnderflow)?;
-                self.stack.push(b - a);
-                Ok(())
-            }
-            Token::Mul => {
-                let a = self.stack.pop().ok_or(Error::StackUnderflow)?;
-                let b = self.stack.pop().ok_or(Error::StackUnderflow)?;
-                self.stack.push(b * a);
-                Ok(())
-            }
-            Token::Div => {
-                let a = self.stack.pop().ok_or(Error::StackUnderflow)?;
-                let b = self.stack.pop().ok_or(Error::StackUnderflow)?;
-                if a == 0 {
-                    Err(Error::DivisionByZero)
-                } else {
-                    self.stack.push(b / a);
-                    Ok(())
-                }
-            }
-            Token::Dup => {
-                let a = self.stack.pop().ok_or(Error::StackUnderflow)?;
-                self.stack.push(a);
-                self.stack.push(a);
-                Ok(())
-            }
-            Token::Drop => {
-                let _ = self.stack.pop().ok_or(Error::StackUnderflow)?;
-                Ok(())
-            }
-            Token::Swap => {
-                let a = self.stack.pop().ok_or(Error::StackUnderflow)?;
-                let b = self.stack.pop().ok_or(Error::StackUnderflow)?;
-                self.stack.push(a);
-                self.stack.push(b);
-                Ok(())
-            }
-            Token::Over => {
-                let a = self.stack.pop().ok_or(Error::StackUnderflow)?;
-                let b = self.stack.pop().ok_or(Error::StackUnderflow)?;
-                self.stack.push(b);
-                self.stack.push(a);
-                self.stack.push(b);
-                Ok(())
-            }
-            Token::Int(v) => {
-                self.stack.push(*v);
-                Ok(())
-            }
-            Token::Colon => {
-                let custom_word = iter.next().ok_or(Error::InvalidWord)?.to_string();
-                if custom_word.parse::<i32>().is_ok() {
-                    return Err(Error::InvalidWord);
-                }
-                let mut tokens = vec![];
-                while let Some(t) = iter.next() {
-                    if let Some(v) = self.custom_words.get(t) {
-                        for t in v {
-                            tokens.push(t.clone());
-                        }
-                    } else {
-                        let token = Token::tokenize(t).ok_or(Error::InvalidWord)?;
-                        match token {
-                            Token::SemiColon => {
-                                tokens.push(token);
-                                break;
-                            },
-                            _ => tokens.push(token),
-                        }
-                    }
-                }
-                match tokens.pop().ok_or(Error::InvalidWord)? {
-                    Token::SemiColon => {},
-                    _ => return Err(Error::InvalidWord)
-                };
-                self.custom_words.insert(custom_word, tokens);
-                Ok(())
-            }
-            Token::SemiColon => Err(Error::UnknownWord),
+            Token::Add => Self::execute_add(stack),
+            Token::Sub => Self::execute_sub(stack),
+            Token::Mul => Self::execute_mul(stack),
+            Token::Div => Self::execute_div(stack),
+            Token::Dup => Self::execute_dup(stack),
+            Token::Drop => Self::execute_drop(stack),
+            Token::Swap => Self::execute_swap(stack),
+            Token::Over => Self::execute_over(stack),
+            Token::Int(n) => Self::execute_int(stack, *n),
+            // Token::Custom(id) => self.execute_custom_token(id),
+            _ => Err(Error::UnknownWord)
+        }
+        
+    }
+
+    fn execute_add(stack: &mut Vec<Value>) -> Result {
+        let a = stack.pop().ok_or(Error::StackUnderflow)?;
+        let b = stack.pop().ok_or(Error::StackUnderflow)?;
+        stack.push(a + b);
+        Ok(())
+    }
+
+    fn execute_sub(stack: &mut Vec<Value>) -> Result {
+        let a = stack.pop().ok_or(Error::StackUnderflow)?;
+        let b = stack.pop().ok_or(Error::StackUnderflow)?;
+        stack.push(b - a);
+        Ok(())
+    }
+
+    fn execute_mul(stack: &mut Vec<Value>) -> Result {
+        let a = stack.pop().ok_or(Error::StackUnderflow)?;
+        let b = stack.pop().ok_or(Error::StackUnderflow)?;
+        stack.push(b * a);
+        Ok(())
+    }
+
+    fn execute_div(stack: &mut Vec<Value>) -> Result {
+        let a = stack.pop().ok_or(Error::StackUnderflow)?;
+        let b = stack.pop().ok_or(Error::StackUnderflow)?;
+        if a == 0 {
+            Err(Error::DivisionByZero)
+        } else {
+            stack.push(b / a);
+            Ok(())
         }
     }
+
+    fn execute_dup(stack: &mut Vec<Value>) -> Result {
+        let a = stack.pop().ok_or(Error::StackUnderflow)?;
+        stack.push(a);
+        stack.push(a);
+        Ok(())
+    }
+
+    fn execute_drop(stack: &mut Vec<Value>) -> Result {
+        let _ = stack.pop().ok_or(Error::StackUnderflow)?;
+        Ok(())
+    }
+
+    fn execute_swap(stack: &mut Vec<Value>) -> Result {
+        let a = stack.pop().ok_or(Error::StackUnderflow)?;
+        let b = stack.pop().ok_or(Error::StackUnderflow)?;
+        stack.push(a);
+        stack.push(b);
+        Ok(())
+    }
+
+    fn execute_over(stack: &mut Vec<Value>) -> Result {
+        let a = stack.pop().ok_or(Error::StackUnderflow)?;
+        let b = stack.pop().ok_or(Error::StackUnderflow)?;
+        stack.push(b);
+        stack.push(a);
+        stack.push(b);
+        Ok(())
+    }
+
+    fn execute_int(stack: &mut Vec<Value>, n: Value) -> Result {
+        stack.push(n);
+        Ok(())
+    }
+
+    fn execute_custom_token(id: &u32, custom_words: &CustomWords, stack: &mut Vec<Value>) -> Result {
+        let token = custom_words.get_by_id(id).ok_or(Error::UnknownWord)?;
+        Self::execute_custom_word(token, custom_words, stack)?;
+        Ok(())
+    }
+
+    fn execute_definition<'a>(&mut self, iter: &mut impl Iterator<Item = &'a str>) -> Result {
+        self.stack.push(56);
+
+        Ok(())
+    }
+
 }
