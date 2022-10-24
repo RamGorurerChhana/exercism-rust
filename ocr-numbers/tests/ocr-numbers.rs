@@ -3,7 +3,8 @@ use ocr_numbers as ocr;
 #[test]
 fn input_with_lines_not_multiple_of_four_is_error() {
     #[rustfmt::skip]
-    let input = " _ \n".to_string() +
+    let input = 
+                " _ \n".to_string() +
                 "| |\n" +
                 "   ";
 
@@ -11,10 +12,11 @@ fn input_with_lines_not_multiple_of_four_is_error() {
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 fn input_with_columns_not_multiple_of_three_is_error() {
     #[rustfmt::skip]
-    let input = "    \n".to_string() +
+    let input = 
+                "    \n".to_string() +
                 "   |\n" +
                 "   |\n" +
                 "    ";
@@ -23,10 +25,11 @@ fn input_with_columns_not_multiple_of_three_is_error() {
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 fn unrecognized_characters_return_question_mark() {
     #[rustfmt::skip]
-    let input = "   \n".to_string() +
+    let input = 
+                "   \n".to_string() +
                 "  _\n" +
                 "  |\n" +
                 "   ";
@@ -35,7 +38,7 @@ fn unrecognized_characters_return_question_mark() {
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 fn recognizes_0() {
     #[rustfmt::skip]
     let input = " _ \n".to_string() +
@@ -47,7 +50,7 @@ fn recognizes_0() {
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 fn recognizes_1() {
     #[rustfmt::skip]
     let input = "   \n".to_string() +
@@ -59,7 +62,7 @@ fn recognizes_1() {
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 fn recognizes_2() {
     #[rustfmt::skip]
     let input = " _ \n".to_string() +
@@ -71,7 +74,7 @@ fn recognizes_2() {
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 fn recognizes_3() {
     #[rustfmt::skip]
     let input = " _ \n".to_string() +
@@ -83,7 +86,7 @@ fn recognizes_3() {
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 fn recognizes_4() {
     #[rustfmt::skip]
     let input = "   \n".to_string() +
@@ -95,7 +98,7 @@ fn recognizes_4() {
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 fn recognizes_5() {
     #[rustfmt::skip]
     let input = " _ \n".to_string() +
@@ -107,7 +110,7 @@ fn recognizes_5() {
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 fn recognizes_6() {
     #[rustfmt::skip]
     let input = " _ \n".to_string() +
@@ -119,7 +122,7 @@ fn recognizes_6() {
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 fn recognizes_7() {
     #[rustfmt::skip]
     let input = " _ \n".to_string() +
@@ -131,7 +134,7 @@ fn recognizes_7() {
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 fn recognizes_8() {
     #[rustfmt::skip]
     let input = " _ \n".to_string() +
@@ -143,7 +146,7 @@ fn recognizes_8() {
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 fn recognizes_9() {
     #[rustfmt::skip]
     let input = " _ \n".to_string() +
@@ -155,7 +158,7 @@ fn recognizes_9() {
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 fn recognizes_110101100() {
     #[rustfmt::skip]
     let input = "       _     _        _  _ \n".to_string() +
@@ -167,10 +170,11 @@ fn recognizes_110101100() {
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 fn replaces_only_garbled_numbers_with_question_mark() {
     #[rustfmt::skip]
-    let input = "       _     _           _ \n".to_string() +
+    let input = 
+                "       _     _           _ \n".to_string() +
                 "  |  || |  || |     || || |\n" +
                 "  |  | _|  ||_|  |  ||_||_|\n" +
                 "                           ";
@@ -179,10 +183,11 @@ fn replaces_only_garbled_numbers_with_question_mark() {
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 fn recognizes_string_of_decimal_numbers() {
     #[rustfmt::skip]
-    let input = "    _  _     _  _  _  _  _  _ \n".to_string() +
+    let input = 
+                "    _  _     _  _  _  _  _  _ \n".to_string() +
                 "  | _| _||_||_ |_   ||_||_|| |\n" +
                 "  ||_  _|  | _||_|  ||_| _||_|\n" +
                 "                              ";
@@ -191,10 +196,11 @@ fn recognizes_string_of_decimal_numbers() {
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 fn numbers_across_multiple_lines_are_joined_by_commas() {
     #[rustfmt::skip]
-    let input = "    _  _ \n".to_string() +
+    let input = 
+                "    _  _ \n".to_string() +
                 "  | _| _|\n" +
                 "  ||_  _|\n" +
                 "         \n" +

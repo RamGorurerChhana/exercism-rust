@@ -24,7 +24,7 @@ enum Token {
     Over,
     Colon,
     SemiColon,
-    Custom(u32),
+    Custom(usize),
 }
 
 impl Token {
@@ -40,22 +40,22 @@ impl Token {
             "drop" => Some(Self::Drop),
             "swap" => Some(Self::Swap),
             "over" => Some(Self::Over),
-            _ => s.parse::<i32>().map(|v| Self::Int(v)).ok(),
+            _ => s.parse::<i32>().map(Self::Int).ok(),
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct CustomWords {
-    word_ids: HashMap<String, u32>,
-    custom_words: HashMap<u32, Vec<Token>>,
+    word_ids: HashMap<String, usize>,
+    custom_words: Vec<Vec<Token>>,
 }
 
 impl CustomWords {
     fn new() -> Self {
         Self {
             word_ids: HashMap::new(),
-            custom_words: HashMap::new(),
+            custom_words: vec![],
         }
     }
 
@@ -65,10 +65,10 @@ impl CustomWords {
 
     fn get_tokens(&self, k: &str) -> Option<&Vec<Token>> {
         let id = self.word_ids.get(k)?;
-        self.custom_words.get(id)
+        self.custom_words.get(*id)
     }
 
-    fn get_by_id(&self, id: &u32) -> Option<&Vec<Token>> {
+    fn get_by_id(&self, id: usize) -> Option<&Vec<Token>> {
         self.custom_words.get(id)
     }
 
@@ -77,31 +77,20 @@ impl CustomWords {
         Some(Token::Custom(*id))
     }
 
-    fn rename_word(&mut self, k: &str) -> Result {
-        let id = self.word_ids.remove(k).ok_or(Error::UnknownWord)?;
-        self.word_ids.insert(format!("_{k}"), id);
-        Ok(())
-    }
-
     fn insert_word(&mut self, k: &str, tokens: Vec<Token>) -> Result {
-        // if the word already exists in the map then update the map to keep the old word reference valid
-        if self.is_known_word(k) {
-            // rename the existing word first
-            self.rename_word(k)?;
-        }
         // custom word name cannot be a number
         if k.parse::<i32>().is_ok() {
             return Err(Error::InvalidWord);
         }
-        let id = self.word_ids.len() as u32 + 1;
+        let id = self.custom_words.len();
         self.word_ids.insert(k.to_string(), id);
-        self.custom_words.insert(id, tokens);
+        self.custom_words.push(tokens);
 
         Ok(())
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Forth {
     stack: Vec<Value>,
     custom_words: CustomWords,
@@ -124,7 +113,7 @@ impl Forth {
         let mut iter = input.split_ascii_whitespace();
         while let Some(t) = iter.next() {
             if self.custom_words.is_known_word(t) {
-                let _ = execute_custom_word(t, &self.custom_words, &mut self.stack)?;
+                execute_custom_word(t, &self.custom_words, &mut self.stack)?;
                 continue;
             }
 
@@ -144,7 +133,7 @@ impl Forth {
 
         // collect all tokens in the vector
         let mut tokens = vec![];
-        while let Some(t) = iter.next() {
+        for t in iter.by_ref() {
             if self.custom_words.is_known_word(t) {
                 // create Custom token if it is a known word
                 let token = self
@@ -185,7 +174,7 @@ impl Forth {
 fn execute_custom_word(token: &str, custom_words: &CustomWords, stack: &mut Vec<Value>) -> Result {
     let tokens = custom_words.get_tokens(token).ok_or(Error::UnknownWord)?;
     for token in tokens {
-        let _ = execute_token(token, custom_words, stack)?;
+        execute_token(token, custom_words, stack)?;
     }
 
     Ok(())
@@ -193,38 +182,24 @@ fn execute_custom_word(token: &str, custom_words: &CustomWords, stack: &mut Vec<
 
 fn execute_token(token: &Token, custom_words: &CustomWords, stack: &mut Vec<Value>) -> Result {
     match token {
-        Token::Add => execute_add(stack),
-        Token::Sub => execute_sub(stack),
-        Token::Mul => execute_mul(stack),
+        Token::Add => execute_binary_op(stack, |a, b| a + b),
+        Token::Sub => execute_binary_op(stack, |a, b| a - b),
+        Token::Mul => execute_binary_op(stack, |a, b| a * b),
         Token::Div => execute_div(stack),
         Token::Dup => execute_dup(stack),
         Token::Drop => execute_drop(stack),
         Token::Swap => execute_swap(stack),
         Token::Over => execute_over(stack),
         Token::Int(n) => execute_int(stack, *n),
-        Token::Custom(id) => execute_custom_token(id, custom_words, stack),
+        Token::Custom(id) => execute_custom_token(*id, custom_words, stack),
         _ => Err(Error::UnknownWord),
     }
 }
 
-fn execute_add(stack: &mut Vec<Value>) -> Result {
+fn execute_binary_op(stack: &mut Vec<Value>, f: fn(i32, i32) -> i32) -> Result {
     let a = stack.pop().ok_or(Error::StackUnderflow)?;
     let b = stack.pop().ok_or(Error::StackUnderflow)?;
-    stack.push(a + b);
-    Ok(())
-}
-
-fn execute_sub(stack: &mut Vec<Value>) -> Result {
-    let a = stack.pop().ok_or(Error::StackUnderflow)?;
-    let b = stack.pop().ok_or(Error::StackUnderflow)?;
-    stack.push(b - a);
-    Ok(())
-}
-
-fn execute_mul(stack: &mut Vec<Value>) -> Result {
-    let a = stack.pop().ok_or(Error::StackUnderflow)?;
-    let b = stack.pop().ok_or(Error::StackUnderflow)?;
-    stack.push(b * a);
+    stack.push(f(b, a));
     Ok(())
 }
 
@@ -247,7 +222,7 @@ fn execute_dup(stack: &mut Vec<Value>) -> Result {
 }
 
 fn execute_drop(stack: &mut Vec<Value>) -> Result {
-    let _ = stack.pop().ok_or(Error::StackUnderflow)?;
+    stack.pop().ok_or(Error::StackUnderflow)?;
     Ok(())
 }
 
@@ -273,7 +248,7 @@ fn execute_int(stack: &mut Vec<Value>, n: Value) -> Result {
     Ok(())
 }
 
-fn execute_custom_token(id: &u32, custom_words: &CustomWords, stack: &mut Vec<Value>) -> Result {
+fn execute_custom_token(id: usize, custom_words: &CustomWords, stack: &mut Vec<Value>) -> Result {
     let tokens = custom_words.get_by_id(id).ok_or(Error::UnknownWord)?;
     for token in tokens {
         execute_token(token, custom_words, stack)?;
