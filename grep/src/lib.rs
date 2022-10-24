@@ -12,23 +12,60 @@ use anyhow::Error;
 /// [`clap`]: https://crates.io/crates/clap
 /// [`std::env::args`]: https://doc.rust-lang.org/std/env/fn.args.html
 /// [`structopt`]: https://crates.io/crates/structopt
-#[derive(Debug)]
-pub struct Flags;
+///
 
-impl Flags {
-    pub fn new(flags: &[&str]) -> Self {
-        unimplemented!(
-            "Given the flags {:?} implement your own 'Flags' struct to handle flags-related logic",
-            flags
-        );
+#[derive(Debug)]
+pub struct Flags<'a> {
+    flags: &'a [&'a str],
+}
+
+impl<'a> Flags<'a> {
+    pub fn new(flags: &'a [&str]) -> Self {
+        Self { flags }
     }
 }
 
 pub fn grep(pattern: &str, flags: &Flags, files: &[&str]) -> Result<Vec<String>, Error> {
-    unimplemented!(
-        "Search the files '{:?}' for '{}' pattern and save the matches in a vector. Your search logic should be aware of the given flags '{:?}'",
-        files,
-        pattern,
-        flags
-    );
+    let pattern = if flags.flags.contains(&"-i") {
+        pattern.to_lowercase()
+    } else {
+        pattern.to_string()
+    };
+    let mut result = vec![];
+    'outer: for file in files {
+        let content = std::fs::read_to_string(file)?;
+        for (line_no, line) in content.split('\n').enumerate() {
+            if line.is_empty() {
+                continue;
+            }
+            let line_converted = if flags.flags.contains(&"-i") {
+                line.to_lowercase()
+            } else {
+                line.to_string()
+            };
+            let is_match = (flags.flags.contains(&"-x") && line_converted == pattern)
+                || (!flags.flags.contains(&"-x") && line_converted.contains(pattern.as_str()));
+
+            if is_match ^ flags.flags.contains(&"-v") {
+                if flags.flags.contains(&"-l") {
+                    result.push(file.to_string());
+                    continue 'outer;
+                }
+
+                let mut output = String::new();
+                if files.len() > 1 {
+                    output.push_str(file);
+                    output.push(':');
+                }
+                if flags.flags.contains(&"-n") {
+                    output.push_str((line_no + 1).to_string().as_str());
+                    output.push(':');
+                }
+                output.push_str(line);
+                result.push(output);
+            }
+        }
+    }
+
+    Ok(result)
 }
