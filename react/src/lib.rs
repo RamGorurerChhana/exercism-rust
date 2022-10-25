@@ -1,6 +1,9 @@
+use std::collections::HashMap;
+
 /// `InputCellId` is a unique identifier for an input cell.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct InputCellId();
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Ord, PartialOrd, Hash)]
+pub struct InputCellId(usize);
+
 /// `ComputeCellId` is a unique identifier for a compute cell.
 /// Values of type `InputCellId` and `ComputeCellId` should not be mutually assignable,
 /// demonstrated by the following tests:
@@ -15,118 +18,262 @@ pub struct InputCellId();
 /// let input = r.create_input(111);
 /// let compute: react::InputCellId = r.create_compute(&[react::CellId::Input(input)], |_| 222).unwrap();
 /// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Ord, PartialOrd, Hash)]
+pub struct ComputeCellId(usize);
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ComputeCellId();
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct CallbackId();
+pub struct CallbackId(usize);
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// `CellId` is a unique identifier for a cell.
+/// Cell can be an input cell or compute cell
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub enum CellId {
     Input(InputCellId),
     Compute(ComputeCellId),
 }
 
+/// Callback Remove operation errors
 #[derive(Debug, PartialEq, Eq)]
 pub enum RemoveCallbackError {
     NonexistentCell,
     NonexistentCallback,
 }
 
-pub struct Reactor<T> {
-    // Just so that the compiler doesn't complain about an unused type parameter.
-    // You probably want to delete this field.
-    dummy: ::std::marker::PhantomData<T>,
+type BoxFn<'cf, T> = Box<dyn Fn(&[T]) -> T + 'cf>;
+type Callback<'cb, T> = (CallbackId, Box<dyn FnMut(T) + 'cb>);
+
+/// definition of a cell. It can be an input cell or compute cell
+struct ReactorCell<'cb, 'cf, T> {
+    id: CellId,
+    value: Option<T>,
+    dependencies: Vec<CellId>,
+    compute_func: Option<BoxFn<'cf, T>>,
+    callbacks: Vec<Callback<'cb, T>>,
+}
+
+impl<'cb, 'cf, T: Copy> ReactorCell<'cb, 'cf, T> {
+    // creates an input cell
+    fn create_input_cell(id: InputCellId, value: T) -> Self {
+        Self {
+            id: CellId::Input(id),
+            value: Some(value),
+            dependencies: vec![],
+            compute_func: None,
+            callbacks: vec![],
+        }
+    }
+
+    // creates an compute cell
+    // value is initialized as None
+    fn create_compute_cell(
+        id: ComputeCellId,
+        dependencies: &[CellId],
+        compute_func: BoxFn<'cf, T>,
+    ) -> Self {
+        Self {
+            id: CellId::Compute(id),
+            value: None,
+            dependencies: dependencies.to_vec(),
+            compute_func: Some(compute_func),
+            callbacks: vec![],
+        }
+    }
+
+    // get value of a cell
+    fn get_value(&self) -> Option<T> {
+        self.value
+    }
+
+    // set value of a cell
+    fn set_value(&mut self, value: T) {
+        self.value = Some(value);
+    }
+}
+
+pub struct Reactor<'cb, 'cf, T> {
+    cells: Vec<ReactorCell<'cb, 'cf, T>>,
+    dependecies_map: HashMap<CellId, Vec<CellId>>,
 }
 
 // You are guaranteed that Reactor will only be tested against types that are Copy + PartialEq.
-impl<T: Copy + PartialEq> Reactor<T> {
+impl<'cb, 'cf, T: Copy + PartialEq> Reactor<'cb, 'cf, T> {
     pub fn new() -> Self {
-        unimplemented!()
+        Self {
+            cells: vec![],
+            dependecies_map: HashMap::new(),
+        }
     }
 
     // Creates an input cell with the specified initial value, returning its ID.
-    pub fn create_input(&mut self, _initial: T) -> InputCellId {
-        unimplemented!()
+    // value of the cell is set to the initial value provided
+    pub fn create_input(&mut self, initial: T) -> InputCellId {
+        let id = self.cells.len() + 1;
+        let id = InputCellId(id);
+        let cell = ReactorCell::create_input_cell(id, initial);
+        self.cells.push(cell);
+        id
     }
 
-    // Creates a compute cell with the specified dependencies and compute function.
-    // The compute function is expected to take in its arguments in the same order as specified in
-    // `dependencies`.
-    // You do not need to reject compute functions that expect more arguments than there are
-    // dependencies (how would you check for this, anyway?).
-    //
-    // If any dependency doesn't exist, returns an Err with that nonexistent dependency.
-    // (If multiple dependencies do not exist, exactly which one is returned is not defined and
-    // will not be tested)
-    //
-    // Notice that there is no way to *remove* a cell.
-    // This means that you may assume, without checking, that if the dependencies exist at creation
-    // time they will continue to exist as long as the Reactor exists.
-    pub fn create_compute<F: Fn(&[T]) -> T>(
+    // Creates a compute cell with the provided dependecies and compute_func
+    // after the cell is created, compute is called on the cell to set the initial value of the cell
+    pub fn create_compute<F: Fn(&[T]) -> T + 'cf>(
         &mut self,
-        _dependencies: &[CellId],
-        _compute_func: F,
+        dependencies: &[CellId],
+        compute_func: F,
     ) -> Result<ComputeCellId, CellId> {
-        unimplemented!()
+        let id = self.cells.len() + 1;
+        let id = ComputeCellId(id);
+        // if any of the provided dependencies are invalid then return error
+        for cell in dependencies {
+            if !self.is_valid_cell(*cell) {
+                return Err(*cell);
+            }
+        }
+        // create the compute cell
+        let cell = ReactorCell::create_compute_cell(id, dependencies, Box::new(compute_func));
+        self.cells.push(cell);
+        // add the ComputeCellId to the dependencies_map
+        for cell in dependencies {
+            self.dependecies_map
+                .entry(*cell)
+                .and_modify(|v| v.push(CellId::Compute(id)))
+                .or_insert_with(|| vec![CellId::Compute(id)]);
+        }
+        // compute value for the cell just created
+        self.compute(CellId::Compute(id));
+        Ok(id)
+    }
+
+    // check if a given CellId exists
+    fn is_valid_cell(&self, id: CellId) -> bool {
+        self.cells.iter().any(|c| c.id == id)
+    }
+
+    // compute value for a given CellId
+    fn compute(&mut self, id: CellId) {
+        // compute not for InputCell
+        if let CellId::Input(_) = id {
+            return;
+        }
+        let deps = self.get_dependencies_values(id);
+        let cell = self.cells.iter_mut().find(|cell| cell.id == id).unwrap();
+        // compute cell must have a compute_func, hence unwrap
+        let val = (cell.compute_func.as_ref().unwrap())(&deps);
+        // keep the old_val before updating
+        let old_val = cell.get_value();
+        cell.set_value(val);
+        // if new value has changed then call all added callbacks
+        if old_val.is_none() || old_val.unwrap() != val {
+            for cb in cell.callbacks.iter_mut() {
+                (cb.1)(val);
+            }
+        }
+    }
+
+    // get values of cells that are dependencies of a cell
+    fn get_dependencies_values(&self, id: CellId) -> Vec<T> {
+        self.cells
+            .iter()
+            .find(|cell| cell.id == id)
+            .unwrap() // well cell must exists to have dendencies
+            .dependencies
+            .iter()
+            .map(|c| self.value(*c).unwrap())
+            .collect::<Vec<_>>()
     }
 
     // Retrieves the current value of the cell, or None if the cell does not exist.
-    //
-    // You may wonder whether it is possible to implement `get(&self, id: CellId) -> Option<&Cell>`
-    // and have a `value(&self)` method on `Cell`.
-    //
-    // It turns out this introduces a significant amount of extra complexity to this exercise.
-    // We chose not to cover this here, since this exercise is probably enough work as-is.
     pub fn value(&self, id: CellId) -> Option<T> {
-        unimplemented!("Get the value of the cell whose id is {:?}", id)
+        let cell = self.cells.iter().find(|c| c.id == id)?;
+        cell.get_value()
     }
 
     // Sets the value of the specified input cell.
-    //
     // Returns false if the cell does not exist.
-    //
-    // Similarly, you may wonder about `get_mut(&mut self, id: CellId) -> Option<&mut Cell>`, with
-    // a `set_value(&mut self, new_value: T)` method on `Cell`.
-    //
-    // As before, that turned out to add too much extra complexity.
-    pub fn set_value(&mut self, _id: InputCellId, _new_value: T) -> bool {
-        unimplemented!()
+    pub fn set_value(&mut self, id: InputCellId, new_value: T) -> bool {
+        let cell = self.cells.iter_mut().find(|c| c.id == CellId::Input(id));
+        // if cell doesn't exists then return false
+        if cell.is_none(){
+            return false;
+        }
+        let cell = cell.unwrap();
+        cell.set_value(new_value);
+        let dependants = self.get_all_dependants(id);
+        for dep in dependants {
+            self.compute(dep);
+        }
+        true
+    }
+
+    // get all dependants of a InputCellId 
+    // get all dependants of all dependants
+    fn get_all_dependants(&self, id: InputCellId) -> Vec<CellId> {
+        let dependants = self.dependecies_map.get(&CellId::Input(id));
+        // if no dependants present then return
+        if dependants.is_none() {
+            return vec![];
+        }
+        let mut dependants = dependants.unwrap().clone();
+        let mut i = 0;
+        loop {
+            if i >= dependants.len() {
+                break;
+            }
+            if let Some(deps) = self.dependecies_map.get(&dependants[i]) {
+                for dep in deps {
+                    if !dependants.contains(dep) {
+                        dependants.push(*dep);
+                    }
+                }
+            }
+            i += 1;
+        }
+        dependants.sort_unstable();
+        dependants
     }
 
     // Adds a callback to the specified compute cell.
-    //
     // Returns the ID of the just-added callback, or None if the cell doesn't exist.
-    //
-    // Callbacks on input cells will not be tested.
-    //
-    // The semantics of callbacks (as will be tested):
-    // For a single set_value call, each compute cell's callbacks should each be called:
-    // * Zero times if the compute cell's value did not change as a result of the set_value call.
-    // * Exactly once if the compute cell's value changed as a result of the set_value call.
-    //   The value passed to the callback should be the final value of the compute cell after the
-    //   set_value call.
-    pub fn add_callback<F: FnMut(T)>(
+    pub fn add_callback<F: FnMut(T) + 'cb>(
         &mut self,
-        _id: ComputeCellId,
-        _callback: F,
+        id: ComputeCellId,
+        callback: F,
     ) -> Option<CallbackId> {
-        unimplemented!()
+        if let Some(cell) = self.cells.iter_mut().find(|c| c.id == CellId::Compute(id)) {
+            let cb = cell.callbacks.len() + 1;
+            let cb = CallbackId(cb);
+            cell.callbacks.push((cb, Box::new(callback)));
+            return Some(cb);
+        }
+
+        None
     }
 
     // Removes the specified callback, using an ID returned from add_callback.
-    //
     // Returns an Err if either the cell or callback does not exist.
-    //
     // A removed callback should no longer be called.
     pub fn remove_callback(
         &mut self,
         cell: ComputeCellId,
         callback: CallbackId,
     ) -> Result<(), RemoveCallbackError> {
-        unimplemented!(
-            "Remove the callback identified by the CallbackId {:?} from the cell {:?}",
-            callback,
-            cell,
-        )
+        let cell = self
+            .cells
+            .iter_mut()
+            .find(|c| c.id == CellId::Compute(cell))
+            .ok_or(RemoveCallbackError::NonexistentCell)?;
+        let cb_idx = cell
+            .callbacks
+            .iter_mut()
+            .position(|c| c.0 == callback)
+            .ok_or(RemoveCallbackError::NonexistentCallback)?;
+        let _ = cell.callbacks.remove(cb_idx);
+        Ok(())
+    }
+}
+
+// implement Default trait for Reactor and make Clippy happy :-)
+impl<'cb, 'cf, T: Copy + PartialEq> Default for Reactor<'cb, 'cf, T> {
+    fn default() -> Self {
+        Self::new()
     }
 }
