@@ -41,7 +41,7 @@ fn test_chromatic_scale_with_sharps() {
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 /// Chromatic scale with flats
 fn test_chromatic_scale_with_flats() {
     process_chromatic_case(
@@ -57,7 +57,7 @@ fn test_chromatic_scale_with_flats() {
 // traversals of the scale.
 
 #[test]
-#[ignore]
+// #[ignore]
 /// Simple major scale
 ///
 /// The simplest major scale, with no sharps or flats.
@@ -66,21 +66,21 @@ fn test_simple_major_scale() {
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 /// Major scale with sharps
 fn test_major_scale_with_sharps() {
     process_interval_case("G", "MMmMMMm", &["G", "A", "B", "C", "D", "E", "F#", "G"]);
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 /// Major scale with flats
 fn test_major_scale_with_flats() {
     process_interval_case("F", "MMmMMMm", &["F", "G", "A", "Bb", "C", "D", "E", "F"]);
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 /// Minor scale with sharps
 fn test_minor_scale_with_sharps() {
     process_interval_case(
@@ -91,7 +91,7 @@ fn test_minor_scale_with_sharps() {
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 /// Minor scale with flats
 fn test_minor_scale_with_flats() {
     process_interval_case(
@@ -102,14 +102,14 @@ fn test_minor_scale_with_flats() {
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 /// Dorian mode
 fn test_dorian_mode() {
     process_interval_case("d", "MmMMMmM", &["D", "E", "F", "G", "A", "B", "C", "D"]);
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 /// Mixolydian mode
 fn test_mixolydian_mode() {
     process_interval_case(
@@ -120,7 +120,7 @@ fn test_mixolydian_mode() {
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 /// Lydian mode
 fn test_lydian_mode() {
     process_interval_case(
@@ -131,14 +131,14 @@ fn test_lydian_mode() {
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 /// Phrygian mode
 fn test_phrygian_mode() {
     process_interval_case("e", "mMMMmMM", &["E", "F", "G", "A", "B", "C", "D", "E"]);
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 /// Locrian mode
 fn test_locrian_mode() {
     process_interval_case(
@@ -149,7 +149,7 @@ fn test_locrian_mode() {
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 /// Harmonic minor
 ///
 /// Note that this case introduces the augmented second interval (A)
@@ -158,7 +158,7 @@ fn test_harmonic_minor() {
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 /// Octatonic
 fn test_octatonic() {
     process_interval_case(
@@ -169,21 +169,21 @@ fn test_octatonic() {
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 /// Hexatonic
 fn test_hexatonic() {
     process_interval_case("Db", "MMMMMM", &["Db", "Eb", "F", "G", "A", "B", "Db"]);
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 /// Pentatonic
 fn test_pentatonic() {
     process_interval_case("A", "MMAMA", &["A", "B", "C#", "E", "F#", "A"]);
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 /// Enigmatic
 fn test_enigmatic() {
     process_interval_case(
@@ -192,3 +192,13 @@ fn test_enigmatic() {
         &["G", "G#", "B", "C#", "D#", "F", "F#", "G"],
     );
 }
+
+// "A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#",
+
+// "A", "Bb", "B", "C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab",
+
+// Sharp Tonic
+// "G"|"D"|"A"|"E"|"B"|"F#"|"e"|"b"|"f#"|"c#"|"g#"|"d#"|"C"|"a"
+
+// Flat Tonic
+// "F"|"Bb"|"Eb"|"Ab"|"Db"|"Gb"|"d"|"g"|"c"|"f"|"bb"|"eb"
